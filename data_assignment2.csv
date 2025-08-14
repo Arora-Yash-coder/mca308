@@ -1,0 +1,11 @@
+id,refund,income,status,Cheat
+1,Yes,125,Single,No
+2,No,100,Married,No
+3,No,70,Single,No
+4,Yes,120,Married,No
+5,No,95,Divorced,Yes
+6,No,60,Married,No
+7,Yes,220,Divorced,No
+8,No,85,Single,Yes
+9,No,75,Married,No
+10,No,90,Single,Yes
