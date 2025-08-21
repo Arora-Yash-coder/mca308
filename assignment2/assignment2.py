@@ -14,8 +14,8 @@ print("Q1 Dataset:\n", df)
 
 print("\nQ2 Selected Rows:\n", df.loc[[0, 4, 7, 8]])
 
-df.to_csv("data_assignment2.csv", index=False)
-df_csv = pd.read_csv("data_assignment2.csv")
+df.to_csv("assignment2/data_assignment2.csv", index=False)
+df_csv = pd.read_csv("assignment2/data_assignment2.csv")
 print("\nQ3 CSV File:\n", df_csv)
 
 dept_type = CategoricalDtype(categories=['Science', 'Commerce', 'Arts'], ordered=False) 
@@ -96,4 +96,4 @@ print("\nQ8.j.ii IT Dept:\n", emp_df[emp_df['Department'] == 'IT'])
 emp_df['Tax'] = emp_df['Salary'] * 0.10
 print("\nQ8.k With Tax:\n", emp_df)
 
-emp_df.to_csv("employees.csv", index=False)
+emp_df.to_csv("assignment2/employees.csv", index=False)
