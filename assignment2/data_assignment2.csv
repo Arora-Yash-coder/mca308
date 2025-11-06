@@ -1,11 +1,3 @@
-id,refund,income,status,Cheat
-1,Yes,125,Single,No
-2,No,100,Married,No
-3,No,70,Single,No
-4,Yes,120,Married,No
-5,No,95,Divorced,Yes
-6,No,60,Married,No
-7,Yes,220,Divorced,No
-8,No,85,Single,Yes
-9,No,75,Married,No
-10,No,90,Single,Yes
+version https://git-lfs.github.com/spec/v1
+oid sha256:569cab9900927b27fa8bf2c2cec64e30b2e85e026752fff074674e618c40dca5
+size 240
