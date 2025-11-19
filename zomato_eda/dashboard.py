@@ -7,11 +7,12 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from wordcloud import WordCloud
 import plotly.graph_objects as go
+from sklearn.preprocessing import LabelEncoder
 
 st.set_page_config(page_title="Zomato EDA & ML Dashboard", layout="wide")
 
 # -----------------------------------------------------------------------------
-# Load Model and Encoders
+# MODEL + ENCODER LOADING
 # -----------------------------------------------------------------------------
 @st.cache_resource
 def load_model():
@@ -24,24 +25,29 @@ def load_model():
 model, enc = load_model()
 
 # -----------------------------------------------------------------------------
-# Load Data
+# SAFE ENCODING WRAPPER
+# -----------------------------------------------------------------------------
+def apply_encoding(enc, input_df, cols):
+    for col in cols:
+        input_df[col] = enc[col].transform(input_df[col].astype(str))
+    return input_df
+
+# -----------------------------------------------------------------------------
+# DATA LOADING
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_data():
     df = pd.read_csv("zomato.csv")
 
     df["rate"] = (
-        df["rate"]
-        .astype(str)
+        df["rate"].astype(str)
         .str.replace("/5", "")
         .replace(["NEW", "-", "nan"], np.nan)
     )
     df["rate"] = pd.to_numeric(df["rate"], errors="coerce")
 
     df["approx_cost(for two people)"] = (
-        df["approx_cost(for two people)"]
-        .astype(str)
-        .str.replace(",", "")
+        df["approx_cost(for two people)"].astype(str).str.replace(",", "")
     )
     df["approx_cost(for two people)"] = pd.to_numeric(
         df["approx_cost(for two people)"], errors="coerce"
@@ -56,19 +62,19 @@ def load_data():
 df = load_data()
 
 # -----------------------------------------------------------------------------
-# Cached WordCloud Generator
+# CACHED WORDCLOUD (dish liked only)
 # -----------------------------------------------------------------------------
 @st.cache_data
 def generate_cloud(text):
     return WordCloud(width=1600, height=900, background_color="white").generate(text)
 
 # -----------------------------------------------------------------------------
-# Sidebar Filters
+# SIDEBAR FILTERS
 # -----------------------------------------------------------------------------
 st.sidebar.header("Filters")
 
-city = st.sidebar.multiselect("City", sorted(df["listed_in(city)"].dropna().unique()))
-rest_type = st.sidebar.multiselect("Restaurant Type", sorted(df["rest_type"].dropna().unique()))
+city = st.sidebar.multiselect("City", sorted(df["listed_in(city)"].unique()))
+rest_type = st.sidebar.multiselect("Restaurant Type", sorted(df["rest_type"].unique()))
 cuisine_filter = st.sidebar.text_input("Cuisine Keyword")
 
 online = st.sidebar.selectbox("Online Order", ["All", "Yes", "No"])
@@ -80,22 +86,26 @@ if city:
 if rest_type:
     filtered = filtered[filtered["rest_type"].isin(rest_type)]
 if cuisine_filter:
-    filtered = filtered[filtered["cuisines"].str.contains(cuisine_filter, case=False, na=False)]
+    filtered = filtered[
+        filtered["cuisines"].str.contains(cuisine_filter, case=False, na=False)
+    ]
 if online != "All":
     filtered = filtered[filtered["online_order"] == online]
 if book != "All":
     filtered = filtered[filtered["book_table"] == book]
 
 # -----------------------------------------------------------------------------
-# Tabs
+# TABS
 # -----------------------------------------------------------------------------
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(
-    ["Overview", "Ratings", "WordClouds", "Radar Chart", "Price & Votes",
-     "Correlation", "Prediction", "Findings"]
+    [
+        "Overview", "Ratings", "WordClouds", "Radar Chart",
+        "Price & Votes", "Correlation", "Prediction", "Findings"
+    ]
 )
 
 # -----------------------------------------------------------------------------
-# TAB 1: Overview
+# TAB 1 — OVERVIEW
 # -----------------------------------------------------------------------------
 with tab1:
     st.title("🍽️ Zomato EDA & Machine Learning Dashboard")
@@ -110,12 +120,12 @@ with tab1:
         x="rate",
         nbins=20,
         title="Rating Distribution",
-        color_discrete_sequence=["#ff4b4b"]
+        color_discrete_sequence=["#ff4b4b"],
     )
     st.plotly_chart(fig, use_container_width=True)
 
 # -----------------------------------------------------------------------------
-# TAB 2: Ratings
+# TAB 2 — RATINGS
 # -----------------------------------------------------------------------------
 with tab2:
     st.subheader("Ratings by Restaurant Type")
@@ -127,25 +137,21 @@ with tab2:
     st.plotly_chart(fig, use_container_width=True)
 
 # -----------------------------------------------------------------------------
-# TAB 3: WordClouds (Dish Liked ONLY — Reviews Removed)
+# TAB 3 — WORDCLOUDS (Dish Liked Only)
 # -----------------------------------------------------------------------------
 with tab3:
-    st.subheader("WordClouds")
+    st.subheader("Dish Liked WordCloud")
 
-    col1, _ = st.columns(2)
-
-    with col1:
-        st.write("**Dish Liked WordCloud**")
-        text1 = " ".join(filtered["dish_liked"].dropna().astype(str))
-        if text1.strip():
-            wc = generate_cloud(text1)
-            fig, ax = plt.subplots(figsize=(8, 4))
-            ax.imshow(wc)
-            ax.axis("off")
-            st.pyplot(fig)
+    text = " ".join(filtered["dish_liked"].dropna().astype(str))
+    if text.strip():
+        wc = generate_cloud(text)
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.imshow(wc)
+        ax.axis("off")
+        st.pyplot(fig)
 
 # -----------------------------------------------------------------------------
-# TAB 4: Radar Chart
+# TAB 4 — RADAR CHART
 # -----------------------------------------------------------------------------
 with tab4:
     st.subheader("Radar Chart: Aggregated Metrics")
@@ -154,40 +160,35 @@ with tab4:
         "Average Rating": filtered["rate"].mean(),
         "Average Votes": filtered["votes"].mean(),
         "Average Cost": filtered["approx_cost(for two people)"].mean(),
-        "Online Order %": (filtered["online_order"].eq("Yes").mean() * 5),
-        "Book Table %": (filtered["book_table"].eq("Yes").mean() * 5),
+        "Online Order %": filtered["online_order"].eq("Yes").mean() * 5,
+        "Book Table %": filtered["book_table"].eq("Yes").mean() * 5,
     }
 
     categories = list(metrics.keys())
     values = list(metrics.values())
     values.append(values[0])
 
-    fig = go.Figure(
-        data=[go.Scatterpolar(r=values, theta=categories, fill="toself")]
-    )
+    fig = go.Figure(data=[go.Scatterpolar(r=values, theta=categories, fill="toself")])
     fig.update_layout(polar=dict(radialaxis=dict(visible=True)))
     st.plotly_chart(fig, use_container_width=True)
 
 # -----------------------------------------------------------------------------
-# TAB 5: Price & Votes
+# TAB 5 — PRICE & VOTES
 # -----------------------------------------------------------------------------
 with tab5:
     st.subheader("Cost Distribution")
     fig = px.histogram(filtered, x="approx_cost(for two people)", nbins=30)
     st.plotly_chart(fig, use_container_width=True)
 
-    st.subheader("Votes vs Rating (Trendline Enabled)")
+    st.subheader("Votes vs Rating (with Trendline)")
     fig = px.scatter(
-        filtered,
-        x="votes",
-        y="rate",
-        trendline="ols",
-        color="rate"
+        filtered, x="votes", y="rate",
+        trendline="ols", color="rate"
     )
     st.plotly_chart(fig, use_container_width=True)
 
 # -----------------------------------------------------------------------------
-# TAB 6: Correlation Heatmap
+# TAB 6 — CORRELATION
 # -----------------------------------------------------------------------------
 with tab6:
     num_df = filtered.select_dtypes(include=[np.number])
@@ -198,57 +199,60 @@ with tab6:
     st.pyplot(fig)
 
 # -----------------------------------------------------------------------------
-# TAB 7: Prediction
+# TAB 7 — PREDICTION (NO TAB REFRESH)
 # -----------------------------------------------------------------------------
 with tab7:
     st.header("Predict Restaurant Rating Category")
 
-    c1, c2 = st.columns(2)
+    with st.form("prediction_form"):
+        c1, c2 = st.columns(2)
 
-    votes = c1.number_input("Votes", 0, 100000, 100)
-    cost = c1.number_input("Cost for Two", 50, 10000, 500)
+        votes = c1.number_input("Votes", 0, 100000, 100)
+        cost = c1.number_input("Cost for Two (same as dataset)", 50, 10000, 500)
 
-    online_input = c2.selectbox("Online Order", ["Yes", "No"])
-    book_input = c2.selectbox("Book Table", ["Yes", "No"])
+        online_input = c2.selectbox("Online Order", ["Yes", "No"])
+        book_input = c2.selectbox("Book Table", ["Yes", "No"])
 
-    rest_type_input = c1.selectbox("Restaurant Type", sorted(df["rest_type"].unique()))
-    city_input = c2.selectbox("City", sorted(df["listed_in(city)"].unique()))
-    type_input = c2.selectbox("Listing Type", sorted(df["listed_in(type)"].unique()))
+        # Correct columns from the dataset
+        type_input = c1.selectbox("Listing Type", sorted(df["listed_in(type)"].unique()))
+        city_input = c2.selectbox("City", sorted(df["listed_in(city)"].unique()))
+        rest_type_input = c2.selectbox("Restaurant Type", sorted(df["rest_type"].unique()))
 
-    if st.button("Predict Rating"):
+        submitted = st.form_submit_button("Predict Rating")
+
+    if submitted:
+        # EXACT SAME ORDER AS MODEL TRAINING
         input_df = pd.DataFrame([{
             "votes": votes,
-            "approx_cost(for two people)": cost,
+            "cost": cost,
             "online_order": 1 if online_input == "Yes" else 0,
             "book_table": 1 if book_input == "Yes" else 0,
-            "rest_type": rest_type_input,
-            "listed_in(city)": city_input,
-            "listed_in(type)": type_input
+            "type": type_input,
+            "city": city_input,
+            "rest_type": rest_type_input
         }])
 
-        for col in ["rest_type", "listed_in(city)", "listed_in(type)"]:
-            input_df[col] = enc[col].transform(input_df[col].astype(str))
+        # Apply encoders saved earlier
+        categorical_cols = ["type", "city", "rest_type"]
+        input_df = apply_encoding(enc, input_df, categorical_cols)
 
         pred = model.predict(input_df)[0]
         st.success(f"⭐ Predicted Rating Category: {pred}")
 
+
 # -----------------------------------------------------------------------------
-# TAB 8: Findings
+# TAB 8 — FINDINGS
 # -----------------------------------------------------------------------------
 with tab8:
     st.header("Findings & Insights")
-
     st.markdown("""
 ### Key Insights
-
 1. Most restaurants fall between 3.2–4.3 rating.
 2. Restaurants with online ordering tend to have slightly higher ratings.
-3. Mid-price restaurants (₹300–800) perform best.
-4. Votes correlate strongly with popularity.
-5. WordCloud analysis shows popular dishes like biryani, paneer, tikka, chicken.
-6. Random Forest predicts based on cost, votes, online order, table booking, restaurant type, listing type, and city.
+3. Mid-range cost restaurants (₹300–800) show highest popularity.
+4. Votes correlate strongly with customer engagement.
+5. Dish-liked wordcloud reveals popular items across the city.
+6. Random Forest predicts ratings based on votes, cost, online order, booking, restaurant type, listing type, and city.
 """)
 
-    notes = st.text_area("Add additional observations:")
-    if notes:
-        st.info("Notes saved (not persistent).")
+    st.text_area("Additional Notes")
